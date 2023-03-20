@@ -6,7 +6,7 @@ import math
 import glob as gb
 import os.path as osp
 from skimage.metrics import structural_similarity as ssim
-
+import struct
 
 def cal_ws_metrics(src_gt, src_sr,src_sal, metrics=None, print_avg=True, print_details=True):
     '''
@@ -39,7 +39,15 @@ def cal_ws_metrics(src_gt, src_sr,src_sal, metrics=None, print_avg=True, print_d
         assert idx in osp.splitext(osp.split(pth_sr)[1])[0]
         img_gt = cv2.imread(pth_gt)
         img_sr = cv2.imread(pth_sr)
-        img_sal = cv2.imread(pth_sal)
+        #img_sal = cv2.imread(pth_sal)
+
+        file_size_compressed = osp.getsize(pth_sr)
+        height_compressed, width_compressed, channels = img_sr.shape
+
+        with open(pth_sal, 'rb') as fileId:
+          buf = fileId.read(width_compressed * height_compressed * 4)  # 4 bytes for single precision float
+          img_sal = struct.unpack('f' * (width_compressed * height_compressed), buf)
+          img_sal = np.array(img_sal).reshape((height_compressed, width_compressed))
 
         file_size_compressed = osp.getsize(pth_sr)
         height_compressed, width_compressed, channels = img_sr.shape
@@ -194,7 +202,8 @@ def calculate_sal_psnr_ws(img, img2, sal_map, crop_border, input_order='HWC', **
 
     img = img.astype(np.float64)
     img2 = img2.astype(np.float64)
-    img_w = np.multiply(compute_map_ws(img),sal_map)
+    sal_map_3channel = np.stack([sal_map, sal_map, sal_map], axis=-1)
+    img_w = np.multiply(compute_map_ws(img),sal_map_3channel)
 
     mse = np.mean(np.multiply((img - img2)**2, img_w))/np.mean(img_w)
     if mse == 0:
